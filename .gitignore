@@ -33,5 +33,4 @@ build/
 ### LOG###
 *.log
 *.temp
-/src
 /.mvn
