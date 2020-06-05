@@ -1,5 +1,6 @@
 package com.example.multisource.aspect;
 
+import com.example.multisource.annonation.MultiTm;
 import com.example.multisource.util.SpringContextUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -11,6 +12,8 @@ import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.DefaultTransactionDefinition;
+
+import java.util.Stack;
 
 /**
  * @ClassName TsetAspect
@@ -26,35 +29,33 @@ public class TsetAspect {
     public void TsetAspect(){
 
     }
-    @Around(value = "TsetAspect()")
-    public Object transactionalGroupAspectArround(ProceedingJoinPoint pjp) throws Throwable{
-//        db1Manager.setDataSource((DataSource) SpringContextUtil.getBean("db1"));
-//        db2Manager.setDataSource((DataSource) SpringContextUtil.getBean("db2"));
-        DataSourceTransactionManager db1Manager = (DataSourceTransactionManager) SpringContextUtil
-                .getBean("db1TransactionManager");
-        TransactionStatus transactionDB1Status = db1Manager
-                .getTransaction(new DefaultTransactionDefinition());
-        DataSourceTransactionManager db2Manager = (DataSourceTransactionManager) SpringContextUtil
-                .getBean("db2TransactionManager");
-        TransactionStatus transactionDB2Status = db2Manager
-                .getTransaction(new DefaultTransactionDefinition());
-
+    @Around(value = "TsetAspect() && @annotation(multiTm)")
+    public Object transactionalGroupAspectArround(ProceedingJoinPoint pjp, MultiTm multiTm) throws Throwable{
+        Stack<DataSourceTransactionManager> dataSourceTransactionManagerStack = new Stack<>();
+        Stack<TransactionStatus> transactionStatusStack = new Stack<>();
+        if (multiTm.transactionManagers().length<1){
+            log.info("[开启事务失败]：无指定多数据源管理器");
+            return null;
+        }
+        for(String transationMangaeName: multiTm.transactionManagers()){
+            DataSourceTransactionManager dbManager = (DataSourceTransactionManager) SpringContextUtil.getBean(transationMangaeName);
+            TransactionStatus transactionDBStatus = dbManager.getTransaction(new DefaultTransactionDefinition());
+            dataSourceTransactionManagerStack.push(dbManager);
+            transactionStatusStack.push(transactionDBStatus);
+        }
 
         try{
             Object obj = pjp.proceed();
-            db2Manager.commit(transactionDB2Status);
-            db1Manager.commit(transactionDB1Status);
+            while(!dataSourceTransactionManagerStack.isEmpty()){
+                dataSourceTransactionManagerStack.pop().commit(transactionStatusStack.pop());
+            }
             return obj;
         }catch(Exception e){
             log.info(e.getMessage());
-            db2Manager.rollback(transactionDB2Status);
-            db1Manager.rollback(transactionDB1Status);
+            while(!dataSourceTransactionManagerStack.isEmpty()){
+                dataSourceTransactionManagerStack.pop().rollback(transactionStatusStack.pop());
+            }
             return null;
         }
-
-
-
-
-
     }
 }

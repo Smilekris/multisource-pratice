@@ -34,9 +34,7 @@ public class CreditRecordDB1ServiceImpl extends ServiceImpl<CreditRecordDB1Mappe
     @Override
 //    @Transactional(transactionManager="db2TransactionManager",
 //            rollbackFor = Exception.class)
-    @MultiTm
-//    @Transactional("db1TransactionManager")
-//    @Transactional("db2TransactionManager")
+    @MultiTm(transactionManagers={"db1TransactionManager","db2TransactionManager"})
     public int addWithTransation() {
         int currentTimeMills = (int) Instant.now().getEpochSecond();
         CreditRecord creditRecordA = new CreditRecord();
